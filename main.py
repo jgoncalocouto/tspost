@@ -57,7 +57,8 @@ def get_default_rules_cfg() -> Dict[str, Any]:
 def get_default_summary_cfg() -> Dict[str, Any]:
     return {
         "version": 1,
-        "selected_filters": [],
+        "filter_count": 0,
+        "filters": [],
         "selected_groups": [],
         "selected_values": [],
         "selected_stats": ["count", "mean", "median", "min", "max", "std"],
@@ -1214,6 +1215,12 @@ def _coerce_datetime_series(series: pd.Series) -> Optional[pd.Series]:
     return None
 
 
+def _default_filter_row(filterable_cols: List[str]) -> Dict[str, Any]:
+    return {
+        "column": filterable_cols[0] if filterable_cols else None,
+    }
+
+
 def _apply_filters(df: pd.DataFrame, filters: List[Tuple[str, Any]]) -> pd.DataFrame:
     filtered = df
     for col_name, spec in filters:
@@ -1263,16 +1270,37 @@ def ui_summary_statistics_module():
         all_group_cols = [INDEX_COL_LABEL] + list(df.columns) if INDEX_COL_LABEL in filterable_cols else list(df.columns)
 
         st.subheader("Filters")
-        selected_filters = st.multiselect(
-            "Filter columns (select 1+ variables to filter)",
-            options=filterable_cols,
-            default=cfg.get("selected_filters") or [],
-            key="summary_filter_cols"
+        filter_count = st.number_input(
+            "Number of filters",
+            min_value=0,
+            max_value=max(0, len(filterable_cols)),
+            value=int(cfg.get("filter_count", 0)),
+            step=1,
+            key="summary_filter_count"
         )
-        cfg["selected_filters"] = selected_filters
+        cfg["filter_count"] = filter_count
+
+        filter_rows = cfg.get("filters") or []
+        if len(filter_rows) < filter_count:
+            for _ in range(filter_count - len(filter_rows)):
+                filter_rows.append(_default_filter_row(filterable_cols))
+        elif len(filter_rows) > filter_count:
+            filter_rows = filter_rows[:filter_count]
+        cfg["filters"] = filter_rows
 
         filter_specs: List[Tuple[str, Any]] = []
-        for col in selected_filters:
+        for idx, filter_row in enumerate(filter_rows):
+            col = st.selectbox(
+                f"Filter #{idx + 1} column",
+                options=filterable_cols,
+                index=filterable_cols.index(filter_row.get("column"))
+                if filter_row.get("column") in filterable_cols
+                else 0,
+                key=f"summary_filter_col_{idx}"
+            )
+            filter_row["column"] = col
+            if col is None:
+                continue
             series = df_work[INDEX_COL_NAME] if col == INDEX_COL_LABEL else df_work[col]
             dt_series = _coerce_datetime_series(series)
             if dt_series is not None:
@@ -1286,7 +1314,7 @@ def ui_summary_statistics_module():
                     value=(min_dt.date(), max_dt.date()),
                     min_value=min_dt.date(),
                     max_value=max_dt.date(),
-                    key=f"summary_date_{col}"
+                    key=f"summary_date_{idx}"
                 )
                 if isinstance(date_range, tuple) and len(date_range) == 2:
                     filter_specs.append((col, {"type": "datetime", "value": date_range}))
@@ -1301,7 +1329,7 @@ def ui_summary_statistics_module():
                     min_value=min_val,
                     max_value=max_val,
                     value=(min_val, max_val),
-                    key=f"summary_num_{col}"
+                    key=f"summary_num_{idx}"
                 )
                 filter_specs.append((col, {"type": "numeric", "value": range_vals}))
             else:
@@ -1310,7 +1338,7 @@ def ui_summary_statistics_module():
                     f"{col} values",
                     options=values,
                     default=values,
-                    key=f"summary_cat_{col}"
+                    key=f"summary_cat_{idx}"
                 )
                 filter_specs.append((col, {"type": "categorical", "value": selected_vals}))
 
