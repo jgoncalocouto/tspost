@@ -1203,6 +1203,17 @@ def _ensure_index_column(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _coerce_datetime_series(series: pd.Series) -> Optional[pd.Series]:
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return series
+    if pd.api.types.is_numeric_dtype(series):
+        return None
+    parsed = pd.to_datetime(series, errors="coerce")
+    if parsed.notna().any():
+        return parsed
+    return None
+
+
 def _apply_filters(df: pd.DataFrame, filters: List[Tuple[str, Any]]) -> pd.DataFrame:
     filtered = df
     for col_name, spec in filters:
@@ -1263,9 +1274,10 @@ def ui_summary_statistics_module():
         filter_specs: List[Tuple[str, Any]] = []
         for col in selected_filters:
             series = df_work[INDEX_COL_NAME] if col == INDEX_COL_LABEL else df_work[col]
-            if pd.api.types.is_datetime64_any_dtype(series):
-                min_dt = pd.to_datetime(series.min())
-                max_dt = pd.to_datetime(series.max())
+            dt_series = _coerce_datetime_series(series)
+            if dt_series is not None:
+                min_dt = pd.to_datetime(dt_series.min())
+                max_dt = pd.to_datetime(dt_series.max())
                 if pd.isna(min_dt) or pd.isna(max_dt):
                     st.info(f"{col} has no valid datetime values to filter.")
                     continue
