@@ -59,7 +59,8 @@ def get_default_summary_cfg() -> Dict[str, Any]:
         "version": 1,
         "filter_count": 0,
         "filters": [],
-        "selected_groups": [],
+        "group_count": 0,
+        "groups": [],
         "selected_values": [],
         "selected_stats": ["count", "mean", "median", "min", "max", "std"],
     }
@@ -1221,6 +1222,12 @@ def _default_filter_row(filterable_cols: List[str]) -> Dict[str, Any]:
     }
 
 
+def _default_group_row(groupable_cols: List[str]) -> Dict[str, Any]:
+    return {
+        "column": groupable_cols[0] if groupable_cols else None,
+    }
+
+
 def _apply_filters(df: pd.DataFrame, filters: List[Tuple[str, Any]]) -> pd.DataFrame:
     filtered = df
     for col_name, spec in filters:
@@ -1346,13 +1353,42 @@ def ui_summary_statistics_module():
         st.caption(f"Filtered rows: {len(filtered_df):,} of {len(df_work):,}")
 
         st.subheader("Grouping & statistics")
-        selected_groups = st.multiselect(
-            "Group by (optional)",
-            options=all_group_cols,
-            default=cfg.get("selected_groups") or [],
-            key="summary_group_cols"
+        group_count = st.number_input(
+            "Number of group by columns",
+            min_value=0,
+            max_value=max(0, len(all_group_cols)),
+            value=int(cfg.get("group_count", 0)),
+            step=1,
+            key="summary_group_count"
         )
-        cfg["selected_groups"] = selected_groups
+        cfg["group_count"] = group_count
+
+        group_rows = cfg.get("groups") or []
+        if len(group_rows) < group_count:
+            for _ in range(group_count - len(group_rows)):
+                group_rows.append(_default_group_row(all_group_cols))
+        elif len(group_rows) > group_count:
+            group_rows = group_rows[:group_count]
+        cfg["groups"] = group_rows
+
+        group_cols: List[str] = []
+        seen_groups = set()
+        for idx, group_row in enumerate(group_rows):
+            group_col = st.selectbox(
+                f"Group by #{idx + 1} column",
+                options=all_group_cols,
+                index=all_group_cols.index(group_row.get("column"))
+                if group_row.get("column") in all_group_cols
+                else 0,
+                key=f"summary_group_col_{idx}"
+            )
+            group_row["column"] = group_col
+            if group_col is None:
+                continue
+            normalized = INDEX_COL_NAME if group_col == INDEX_COL_LABEL else group_col
+            if normalized not in seen_groups:
+                group_cols.append(normalized)
+                seen_groups.add(normalized)
 
         selected_values = st.multiselect(
             "Value columns (numeric)",
@@ -1378,7 +1414,6 @@ def ui_summary_statistics_module():
             st.info("Select at least one statistic to compute.")
             return
 
-        group_cols = [INDEX_COL_NAME if c == INDEX_COL_LABEL else c for c in selected_groups]
         summary_table = _build_summary_table(filtered_df, group_cols, selected_values, selected_stats)
 
         st.dataframe(summary_table, use_container_width=True)
