@@ -1252,13 +1252,43 @@ def _apply_filters(df: pd.DataFrame, filters: List[Tuple[str, Any]]) -> pd.DataF
 def _build_summary_table(df: pd.DataFrame, group_cols: List[str], value_cols: List[str], stats: List[str]) -> pd.DataFrame:
     if not value_cols:
         return pd.DataFrame()
+    custom_stats = {
+        "avg + std": ("mean", "std", 1),
+        "avg - std": ("mean", "std", -1),
+        "avg + 2*std": ("mean", "std", 2),
+        "avg - 2*std": ("mean", "std", -2),
+    }
+    requested = set(stats)
+    base_stats = [s for s in stats if s not in custom_stats]
+    if any(s in stats for s in custom_stats):
+        for required in ("mean", "std"):
+            if required not in base_stats:
+                base_stats.append(required)
     if group_cols:
-        result = df.groupby(group_cols)[value_cols].agg(stats)
+        result = df.groupby(group_cols)[value_cols].agg(base_stats)
         if isinstance(result.columns, pd.MultiIndex):
             result.columns = [f"{col}__{stat}" for col, stat in result.columns]
+        for col in value_cols:
+            mean_col = f"{col}__mean"
+            std_col = f"{col}__std"
+            if mean_col in result.columns and std_col in result.columns:
+                for label, (_, _, multiplier) in custom_stats.items():
+                    if label in stats:
+                        result[f"{col}__{label}"] = result[mean_col] + multiplier * result[std_col]
+        if "mean" not in requested:
+            result = result.drop(columns=[c for c in result.columns if c.endswith("__mean")], errors="ignore")
+        if "std" not in requested:
+            result = result.drop(columns=[c for c in result.columns if c.endswith("__std")], errors="ignore")
         return result.reset_index()
-    result = df[value_cols].agg(stats).T
+    result = df[value_cols].agg(base_stats).T
     result.index.name = "variable"
+    for label, (_, _, multiplier) in custom_stats.items():
+        if label in stats and "mean" in result.columns and "std" in result.columns:
+            result[label] = result["mean"] + multiplier * result["std"]
+    if "mean" not in requested and "mean" in result.columns:
+        result = result.drop(columns=["mean"])
+    if "std" not in requested and "std" in result.columns:
+        result = result.drop(columns=["std"])
     return result.reset_index()
 
 
@@ -1398,7 +1428,19 @@ def ui_summary_statistics_module():
         )
         cfg["selected_values"] = selected_values
 
-        stat_options = ["count", "mean", "median", "min", "max", "std", "sum"]
+        stat_options = [
+            "count",
+            "mean",
+            "median",
+            "min",
+            "max",
+            "std",
+            "sum",
+            "avg + std",
+            "avg - std",
+            "avg + 2*std",
+            "avg - 2*std",
+        ]
         selected_stats = st.multiselect(
             "Summary statistics",
             options=stat_options,
