@@ -1264,6 +1264,8 @@ def _build_summary_table(df: pd.DataFrame, group_cols: List[str], value_cols: Li
         for required in ("mean", "std"):
             if required not in base_stats:
                 base_stats.append(required)
+    if "avg" in requested and "mean" not in base_stats:
+        base_stats.append("mean")
     if group_cols:
         result = df.groupby(group_cols)[value_cols].agg(base_stats)
         if isinstance(result.columns, pd.MultiIndex):
@@ -1275,6 +1277,8 @@ def _build_summary_table(df: pd.DataFrame, group_cols: List[str], value_cols: Li
                 for label, (_, _, multiplier) in custom_stats.items():
                     if label in stats:
                         result[f"{col}__{label}"] = result[mean_col] + multiplier * result[std_col]
+            if "avg" in requested and mean_col in result.columns:
+                result[f"{col}__avg"] = result[mean_col]
         if "mean" not in requested:
             result = result.drop(columns=[c for c in result.columns if c.endswith("__mean")], errors="ignore")
         if "std" not in requested:
@@ -1285,6 +1289,8 @@ def _build_summary_table(df: pd.DataFrame, group_cols: List[str], value_cols: Li
     for label, (_, _, multiplier) in custom_stats.items():
         if label in stats and "mean" in result.columns and "std" in result.columns:
             result[label] = result["mean"] + multiplier * result["std"]
+    if "avg" in requested and "mean" in result.columns:
+        result["avg"] = result["mean"]
     if "mean" not in requested and "mean" in result.columns:
         result = result.drop(columns=["mean"])
     if "std" not in requested and "std" in result.columns:
@@ -1431,6 +1437,7 @@ def ui_summary_statistics_module():
         stat_options = [
             "count",
             "mean",
+            "avg",
             "median",
             "min",
             "max",
