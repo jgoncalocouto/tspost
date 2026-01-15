@@ -500,6 +500,58 @@ def fn_roll_mean(series: pd.Series, window: int = 7, min_periods: Optional[int] 
     return series.rolling(window=window, min_periods=min_periods).mean()
 
 
+def _series_to_datetime(series: pd.Series) -> pd.Series:
+    return pd.to_datetime(series, errors="coerce", infer_datetime_format=True)
+
+
+def fn_dt_year(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.year
+
+
+def fn_dt_month(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.month
+
+
+def fn_dt_day(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.day
+
+
+def fn_dt_dayofweek(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.dayofweek
+
+
+def fn_dt_day_name(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.day_name()
+
+
+def fn_dt_month_name(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.month_name()
+
+
+def fn_dt_hour(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.hour
+
+
+def fn_dt_minute(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.minute
+
+
+def fn_dt_second(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.second
+
+
+def fn_dt_quarter(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.quarter
+
+
+def fn_dt_week(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.isocalendar().week
+
+
+def fn_dt_dayofyear(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.dayofyear
+
+
 FUNC_REGISTRY: Dict[str, FuncSpec] = {
     "cp": FuncSpec(
         func=fn_cp,
@@ -535,6 +587,90 @@ FUNC_REGISTRY: Dict[str, FuncSpec] = {
         defaults={"window": 7, "min_periods": 1},
         doc="Rolling mean with window and min_periods.",
         output_dtype_hint="float",
+    ),
+    "dt_year": FuncSpec(
+        func=fn_dt_year,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract year from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_month": FuncSpec(
+        func=fn_dt_month,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract month (1-12) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_day": FuncSpec(
+        func=fn_dt_day,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day of month (1-31) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_dayofweek": FuncSpec(
+        func=fn_dt_dayofweek,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day of week (Monday=0) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_day_name": FuncSpec(
+        func=fn_dt_day_name,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day name from datetime series.",
+        output_dtype_hint=None,
+    ),
+    "dt_month_name": FuncSpec(
+        func=fn_dt_month_name,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract month name from datetime series.",
+        output_dtype_hint=None,
+    ),
+    "dt_hour": FuncSpec(
+        func=fn_dt_hour,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract hour (0-23) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_minute": FuncSpec(
+        func=fn_dt_minute,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract minute (0-59) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_second": FuncSpec(
+        func=fn_dt_second,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract second (0-59) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_quarter": FuncSpec(
+        func=fn_dt_quarter,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract quarter (1-4) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_week": FuncSpec(
+        func=fn_dt_week,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract ISO week number from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_dayofyear": FuncSpec(
+        func=fn_dt_dayofyear,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day of year (1-366) from datetime series.",
+        output_dtype_hint="int",
     ),
 }
 
