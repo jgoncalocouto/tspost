@@ -19,6 +19,7 @@ import plotly.express as px
 APP_TITLE = "Timeseries Post-Processing App"
 UPLOAD_KEY = "upload_module"
 RULES_KEY = "add_columns_module"
+SUMMARY_KEY = "summary_module"
 APP_CFG_VERSION = 1  # global config version
 
 
@@ -53,17 +54,31 @@ def get_default_rules_cfg() -> Dict[str, Any]:
     }
 
 
+def get_default_summary_cfg() -> Dict[str, Any]:
+    return {
+        "version": 1,
+        "filter_count": 0,
+        "filters": [],
+        "group_count": 0,
+        "groups": [],
+        "selected_values": [],
+        "selected_stats": ["count", "mean", "median", "min", "max", "std"],
+    }
+
+
 def init_state():
     if "cfg" not in st.session_state:
         st.session_state.cfg = {
             "version": APP_CFG_VERSION,
             UPLOAD_KEY: get_default_upload_cfg(),
             RULES_KEY: get_default_rules_cfg(),
+            SUMMARY_KEY: get_default_summary_cfg(),
         }
     else:
         st.session_state.cfg.setdefault("version", APP_CFG_VERSION)
         st.session_state.cfg.setdefault(UPLOAD_KEY, get_default_upload_cfg())
         st.session_state.cfg.setdefault(RULES_KEY, get_default_rules_cfg())
+        st.session_state.cfg.setdefault(SUMMARY_KEY, get_default_summary_cfg())
 
     if "df" not in st.session_state:
         st.session_state.df = None
@@ -81,7 +96,8 @@ def init_state():
 def ui_app_header():
     st.set_page_config(page_title=APP_TITLE, layout="wide")
     st.title(APP_TITLE)
-    st.caption("Module 1: Upload data • Module 2: Add columns (JSON-driven rules). "
+    st.caption("Module 1: Upload data • Module 2: Add columns (JSON-driven rules) • "
+               "Module 3: Summary statistics (filters, group by, aggregations). "
                "Preview/Full runs always use the freshest rules; downloads match what you see.")
 
 
@@ -118,6 +134,7 @@ def ui_global_config_sidebar():
                 "version": new_cfg.get("version", APP_CFG_VERSION),
                 UPLOAD_KEY: new_cfg.get(UPLOAD_KEY, get_default_upload_cfg()),
                 RULES_KEY: new_cfg.get(RULES_KEY, get_default_rules_cfg()),
+                SUMMARY_KEY: new_cfg.get(SUMMARY_KEY, get_default_summary_cfg()),
             }
             st.sidebar.success("Configuration loaded.")
         except Exception as e:
@@ -483,6 +500,58 @@ def fn_roll_mean(series: pd.Series, window: int = 7, min_periods: Optional[int] 
     return series.rolling(window=window, min_periods=min_periods).mean()
 
 
+def _series_to_datetime(series: pd.Series) -> pd.Series:
+    return pd.to_datetime(series, errors="coerce", infer_datetime_format=True)
+
+
+def fn_dt_year(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.year
+
+
+def fn_dt_month(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.month
+
+
+def fn_dt_day(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.day
+
+
+def fn_dt_dayofweek(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.dayofweek
+
+
+def fn_dt_day_name(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.day_name()
+
+
+def fn_dt_month_name(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.month_name()
+
+
+def fn_dt_hour(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.hour
+
+
+def fn_dt_minute(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.minute
+
+
+def fn_dt_second(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.second
+
+
+def fn_dt_quarter(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.quarter
+
+
+def fn_dt_week(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.isocalendar().week
+
+
+def fn_dt_dayofyear(series: pd.Series) -> pd.Series:
+    return _series_to_datetime(series).dt.dayofyear
+
+
 FUNC_REGISTRY: Dict[str, FuncSpec] = {
     "cp": FuncSpec(
         func=fn_cp,
@@ -518,6 +587,90 @@ FUNC_REGISTRY: Dict[str, FuncSpec] = {
         defaults={"window": 7, "min_periods": 1},
         doc="Rolling mean with window and min_periods.",
         output_dtype_hint="float",
+    ),
+    "dt_year": FuncSpec(
+        func=fn_dt_year,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract year from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_month": FuncSpec(
+        func=fn_dt_month,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract month (1-12) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_day": FuncSpec(
+        func=fn_dt_day,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day of month (1-31) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_dayofweek": FuncSpec(
+        func=fn_dt_dayofweek,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day of week (Monday=0) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_day_name": FuncSpec(
+        func=fn_dt_day_name,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day name from datetime series.",
+        output_dtype_hint=None,
+    ),
+    "dt_month_name": FuncSpec(
+        func=fn_dt_month_name,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract month name from datetime series.",
+        output_dtype_hint=None,
+    ),
+    "dt_hour": FuncSpec(
+        func=fn_dt_hour,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract hour (0-23) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_minute": FuncSpec(
+        func=fn_dt_minute,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract minute (0-59) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_second": FuncSpec(
+        func=fn_dt_second,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract second (0-59) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_quarter": FuncSpec(
+        func=fn_dt_quarter,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract quarter (1-4) from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_week": FuncSpec(
+        func=fn_dt_week,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract ISO week number from datetime series.",
+        output_dtype_hint="int",
+    ),
+    "dt_dayofyear": FuncSpec(
+        func=fn_dt_dayofyear,
+        arg_kinds=["series"],
+        defaults={},
+        doc="Extract day of year (1-366) from datetime series.",
+        output_dtype_hint="int",
     ),
 }
 
@@ -1168,6 +1321,289 @@ def _render_run_result(out_df: pd.DataFrame, logs: List[Tuple[int, str, Optional
     )
 
 
+# =============================================================================
+# Module 3: Summary statistics
+# =============================================================================
+INDEX_COL_LABEL = "(index)"
+INDEX_COL_NAME = "__index__"
+
+
+def _get_filterable_columns(df: pd.DataFrame) -> List[str]:
+    cols = list(df.columns)
+    if pd.api.types.is_datetime64_any_dtype(df.index):
+        cols = [INDEX_COL_LABEL] + cols
+    return cols
+
+
+def _ensure_index_column(df: pd.DataFrame) -> pd.DataFrame:
+    if INDEX_COL_LABEL in _get_filterable_columns(df):
+        return df.assign(**{INDEX_COL_NAME: df.index})
+    return df
+
+
+def _coerce_datetime_series(series: pd.Series) -> Optional[pd.Series]:
+    if pd.api.types.is_datetime64_any_dtype(series):
+        return series
+    if pd.api.types.is_numeric_dtype(series):
+        return None
+    parsed = pd.to_datetime(series, errors="coerce")
+    if parsed.notna().any():
+        return parsed
+    return None
+
+
+def _default_filter_row(filterable_cols: List[str]) -> Dict[str, Any]:
+    return {
+        "column": filterable_cols[0] if filterable_cols else None,
+    }
+
+
+def _default_group_row(groupable_cols: List[str]) -> Dict[str, Any]:
+    return {
+        "column": groupable_cols[0] if groupable_cols else None,
+    }
+
+
+def _apply_filters(df: pd.DataFrame, filters: List[Tuple[str, Any]]) -> pd.DataFrame:
+    filtered = df
+    for col_name, spec in filters:
+        series = filtered[INDEX_COL_NAME] if col_name == INDEX_COL_LABEL else filtered[col_name]
+        if spec["type"] == "datetime":
+            start, end = spec["value"]
+            dt_series = pd.to_datetime(series, errors="coerce")
+            mask = dt_series.between(pd.to_datetime(start), pd.to_datetime(end))
+            filtered = filtered.loc[mask]
+        elif spec["type"] == "numeric":
+            low, high = spec["value"]
+            num_series = pd.to_numeric(series, errors="coerce")
+            mask = num_series.between(low, high)
+            filtered = filtered.loc[mask]
+        elif spec["type"] == "categorical":
+            selected = spec["value"]
+            if selected:
+                filtered = filtered.loc[series.isin(selected)]
+    return filtered
+
+
+def _build_summary_table(df: pd.DataFrame, group_cols: List[str], value_cols: List[str], stats: List[str]) -> pd.DataFrame:
+    if not value_cols:
+        return pd.DataFrame()
+    custom_stats = {
+        "mean + std": ("mean", "std", 1),
+        "mean - std": ("mean", "std", -1),
+        "mean + 2*std": ("mean", "std", 2),
+        "mean - 2*std": ("mean", "std", -2),
+    }
+    requested = set(stats)
+    base_stats = [s for s in stats if s not in custom_stats]
+    if any(s in stats for s in custom_stats):
+        for required in ("mean", "std"):
+            if required not in base_stats:
+                base_stats.append(required)
+    if group_cols:
+        result = df.groupby(group_cols)[value_cols].agg(base_stats)
+        if isinstance(result.columns, pd.MultiIndex):
+            result.columns = [f"{col}__{stat}" for col, stat in result.columns]
+        for col in value_cols:
+            mean_col = f"{col}__mean"
+            std_col = f"{col}__std"
+            if mean_col in result.columns and std_col in result.columns:
+                for label, (_, _, multiplier) in custom_stats.items():
+                    if label in stats:
+                        result[f"{col}__{label}"] = result[mean_col] + multiplier * result[std_col]
+        if "mean" not in requested:
+            result = result.drop(columns=[c for c in result.columns if c.endswith("__mean")], errors="ignore")
+        if "std" not in requested:
+            result = result.drop(columns=[c for c in result.columns if c.endswith("__std")], errors="ignore")
+        return result.reset_index()
+    result = df[value_cols].agg(base_stats).T
+    result.index.name = "variable"
+    for label, (_, _, multiplier) in custom_stats.items():
+        if label in stats and "mean" in result.columns and "std" in result.columns:
+            result[label] = result["mean"] + multiplier * result["std"]
+    if "mean" not in requested and "mean" in result.columns:
+        result = result.drop(columns=["mean"])
+    if "std" not in requested and "std" in result.columns:
+        result = result.drop(columns=["std"])
+    return result.reset_index()
+
+
+def ui_summary_statistics_module():
+    df = st.session_state.df
+    cfg = st.session_state.cfg[SUMMARY_KEY]
+
+    with st.expander("3) Summary statistics", expanded=True):
+        if df is None:
+            st.info("Upload data in Module 1 to generate summary statistics.")
+            return
+
+        df_work = _ensure_index_column(df)
+        filterable_cols = _get_filterable_columns(df)
+        numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+        all_group_cols = [INDEX_COL_LABEL] + list(df.columns) if INDEX_COL_LABEL in filterable_cols else list(df.columns)
+
+        st.subheader("Filters")
+        filter_count = st.number_input(
+            "Number of filters",
+            min_value=0,
+            max_value=max(0, len(filterable_cols)),
+            value=int(cfg.get("filter_count", 0)),
+            step=1,
+            key="summary_filter_count"
+        )
+        cfg["filter_count"] = filter_count
+
+        filter_rows = cfg.get("filters") or []
+        if len(filter_rows) < filter_count:
+            for _ in range(filter_count - len(filter_rows)):
+                filter_rows.append(_default_filter_row(filterable_cols))
+        elif len(filter_rows) > filter_count:
+            filter_rows = filter_rows[:filter_count]
+        cfg["filters"] = filter_rows
+
+        filter_specs: List[Tuple[str, Any]] = []
+        for idx, filter_row in enumerate(filter_rows):
+            col = st.selectbox(
+                f"Filter #{idx + 1} column",
+                options=filterable_cols,
+                index=filterable_cols.index(filter_row.get("column"))
+                if filter_row.get("column") in filterable_cols
+                else 0,
+                key=f"summary_filter_col_{idx}"
+            )
+            filter_row["column"] = col
+            if col is None:
+                continue
+            series = df_work[INDEX_COL_NAME] if col == INDEX_COL_LABEL else df_work[col]
+            dt_series = _coerce_datetime_series(series)
+            if dt_series is not None:
+                min_dt = pd.to_datetime(dt_series.min())
+                max_dt = pd.to_datetime(dt_series.max())
+                if pd.isna(min_dt) or pd.isna(max_dt):
+                    st.info(f"{col} has no valid datetime values to filter.")
+                    continue
+                date_range = st.date_input(
+                    f"{col} range",
+                    value=(min_dt.date(), max_dt.date()),
+                    min_value=min_dt.date(),
+                    max_value=max_dt.date(),
+                    key=f"summary_date_{idx}"
+                )
+                if isinstance(date_range, tuple) and len(date_range) == 2:
+                    filter_specs.append((col, {"type": "datetime", "value": date_range}))
+            elif pd.api.types.is_numeric_dtype(series):
+                min_val = float(pd.to_numeric(series, errors="coerce").min())
+                max_val = float(pd.to_numeric(series, errors="coerce").max())
+                if np.isnan(min_val) or np.isnan(max_val):
+                    st.info(f"{col} has no valid numeric values to filter.")
+                    continue
+                range_vals = st.slider(
+                    f"{col} range",
+                    min_value=min_val,
+                    max_value=max_val,
+                    value=(min_val, max_val),
+                    key=f"summary_num_{idx}"
+                )
+                filter_specs.append((col, {"type": "numeric", "value": range_vals}))
+            else:
+                values = sorted(series.dropna().astype(str).unique().tolist())
+                selected_vals = st.multiselect(
+                    f"{col} values",
+                    options=values,
+                    default=values,
+                    key=f"summary_cat_{idx}"
+                )
+                filter_specs.append((col, {"type": "categorical", "value": selected_vals}))
+
+        filtered_df = _apply_filters(df_work, filter_specs)
+        st.caption(f"Filtered rows: {len(filtered_df):,} of {len(df_work):,}")
+
+        st.subheader("Grouping & statistics")
+        group_count = st.number_input(
+            "Number of group by columns",
+            min_value=0,
+            max_value=max(0, len(all_group_cols)),
+            value=int(cfg.get("group_count", 0)),
+            step=1,
+            key="summary_group_count"
+        )
+        cfg["group_count"] = group_count
+
+        group_rows = cfg.get("groups") or []
+        if len(group_rows) < group_count:
+            for _ in range(group_count - len(group_rows)):
+                group_rows.append(_default_group_row(all_group_cols))
+        elif len(group_rows) > group_count:
+            group_rows = group_rows[:group_count]
+        cfg["groups"] = group_rows
+
+        group_cols: List[str] = []
+        seen_groups = set()
+        for idx, group_row in enumerate(group_rows):
+            group_col = st.selectbox(
+                f"Group by #{idx + 1} column",
+                options=all_group_cols,
+                index=all_group_cols.index(group_row.get("column"))
+                if group_row.get("column") in all_group_cols
+                else 0,
+                key=f"summary_group_col_{idx}"
+            )
+            group_row["column"] = group_col
+            if group_col is None:
+                continue
+            normalized = INDEX_COL_NAME if group_col == INDEX_COL_LABEL else group_col
+            if normalized not in seen_groups:
+                group_cols.append(normalized)
+                seen_groups.add(normalized)
+
+        selected_values = st.multiselect(
+            "Value columns (numeric)",
+            options=numeric_cols,
+            default=cfg.get("selected_values") or numeric_cols,
+            key="summary_value_cols"
+        )
+        cfg["selected_values"] = selected_values
+
+        stat_options = [
+            "count",
+            "mean",
+            "median",
+            "min",
+            "max",
+            "std",
+            "sum",
+            "mean + std",
+            "mean - std",
+            "mean + 2*std",
+            "mean - 2*std",
+        ]
+        selected_stats = st.multiselect(
+            "Summary statistics",
+            options=stat_options,
+            default=cfg.get("selected_stats") or stat_options[:-1],
+            key="summary_stats"
+        )
+        cfg["selected_stats"] = selected_stats
+
+        if not selected_values:
+            st.info("Select at least one numeric value column to compute statistics.")
+            return
+        if not selected_stats:
+            st.info("Select at least one statistic to compute.")
+            return
+
+        summary_table = _build_summary_table(filtered_df, group_cols, selected_values, selected_stats)
+
+        st.dataframe(summary_table, use_container_width=True)
+        st.download_button(
+            "Download summary CSV",
+            data=summary_table.to_csv(index=False).encode("utf-8"),
+            file_name="summary_statistics.csv",
+            mime="text/csv",
+            key="dl_summary_stats"
+        )
+
+
 def ui_rules_module():
     df = st.session_state.df
     cfg = st.session_state.cfg[RULES_KEY]
@@ -1312,6 +1748,7 @@ def main():
     ui_global_config_sidebar()
     ui_upload_module()
     ui_rules_module()
+    ui_summary_statistics_module()
 
 
 if __name__ == "__main__":
